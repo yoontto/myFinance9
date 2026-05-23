@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>myFinance9 — 스마트 가계부</title>
+  <meta name="description" content="수입, 지출, 자산을 한 눈에 관리하는 스마트 개인 가계부 앱" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<!-- Hamburger (mobile) -->
+<button class="hamburger" id="hamburger" aria-label="메뉴 열기">☰</button>
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<div class="app-layout">
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">💰</div>
+      <div>
+        <div class="logo-text">myFinance9</div>
+        <div class="logo-sub">스마트 가계부</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <button class="nav-item active" data-page="dashboard" id="nav-dashboard">
+        <span class="nav-icon">📊</span> 대시보드
+      </button>
+      <button class="nav-item" data-page="transactions" id="nav-transactions">
+        <span class="nav-icon">💳</span> 수입 / 지출
+      </button>
+      <button class="nav-item" data-page="assets" id="nav-assets">
+        <span class="nav-icon">🏦</span> 자산 관리
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="theme-toggle" id="themeToggle">
+        <span id="themeIcon">🌙</span>
+        <span id="themeLabel">다크 모드</span>
+        <div class="toggle-track"><div class="toggle-thumb"></div></div>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main-content">
+
+    <!-- ===== DASHBOARD ===== -->
+    <div class="page active" id="page-dashboard">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">대시보드</h1>
+          <p class="page-subtitle" id="dashboard-subtitle">이번 달 재정 현황</p>
+        </div>
+        <div class="month-nav" id="dash-month-nav">
+          <button id="dash-prev" aria-label="이전 달">‹</button>
+          <span class="month-display" id="dash-month-display">—</span>
+          <button id="dash-next" aria-label="다음 달">›</button>
+        </div>
+      </div>
+      <div class="page-body">
+        <!-- 요약 카드 -->
+        <div class="cards-grid" id="summary-cards">
+          <div class="summary-card">
+            <div class="card-icon">💚</div>
+            <div class="card-label">이달 수입</div>
+            <div class="card-amount income" id="card-income">₩0</div>
+          </div>
+          <div class="summary-card">
+            <div class="card-icon">❤️</div>
+            <div class="card-label">이달 지출</div>
+            <div class="card-amount expense" id="card-expense">₩0</div>
+          </div>
+          <div class="summary-card">
+            <div class="card-icon">💜</div>
+            <div class="card-label">잔액</div>
+            <div class="card-amount balance" id="card-balance">₩0</div>
+          </div>
+          <div class="summary-card">
+            <div class="card-icon">💙</div>
+            <div class="card-label">총 자산</div>
+            <div class="card-amount asset" id="card-asset">₩0</div>
+          </div>
+        </div>
+
+        <!-- 차트 -->
+        <div class="charts-grid">
+          <div class="chart-card">
+            <h3>📈 월별 수입 / 지출 추이</h3>
+            <div class="chart-wrap"><canvas id="monthlyChart"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <h3>🍩 카테고리별 지출</h3>
+            <div class="chart-wrap"><canvas id="categoryChart"></canvas></div>
+          </div>
+        </div>
+
+        <!-- 최근 거래 -->
+        <div class="section-header">
+          <span class="section-title">최근 거래</span>
+          <button class="btn btn-ghost text-sm" id="viewAllBtn">전체 보기 →</button>
+        </div>
+        <div class="table-card">
+          <ul class="transaction-list" id="recent-list">
+            <li class="empty-state">
+              <div class="empty-icon">📭</div>
+              <p>거래 내역이 없습니다</p>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== TRANSACTIONS ===== -->
+    <div class="page" id="page-transactions">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">수입 / 지출</h1>
+          <p class="page-subtitle">거래 내역을 관리하세요</p>
+        </div>
+        <div class="flex gap-2 items-center">
+          <div class="month-nav" id="tx-month-nav">
+            <button id="tx-prev" aria-label="이전 달">‹</button>
+            <span class="month-display" id="tx-month-display">—</span>
+            <button id="tx-next" aria-label="다음 달">›</button>
+          </div>
+          <button class="btn btn-primary" id="addTxBtn">＋ 거래 추가</button>
+        </div>
+      </div>
+      <div class="page-body">
+        <div class="table-card">
+          <div class="table-filters">
+            <select class="filter-select" id="typeFilter">
+              <option value="">전체</option>
+              <option value="income">수입만</option>
+              <option value="expense">지출만</option>
+            </select>
+            <select class="filter-select" id="categoryFilter">
+              <option value="">전체 카테고리</option>
+            </select>
+          </div>
+          <ul class="transaction-list" id="tx-list">
+            <li class="empty-state">
+              <div class="empty-icon">📭</div>
+              <p>거래 내역이 없습니다</p>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== ASSETS ===== -->
+    <div class="page" id="page-assets">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">자산 관리</h1>
+          <p class="page-subtitle">월별 자산 현황을 추적하세요</p>
+        </div>
+        <div class="flex gap-2 items-center">
+          <div class="month-nav" id="asset-month-nav">
+            <button id="asset-prev" aria-label="이전 달">‹</button>
+            <span class="month-display" id="asset-month-display">—</span>
+            <button id="asset-next" aria-label="다음 달">›</button>
+          </div>
+          <button class="btn btn-primary" id="addAssetBtn">＋ 자산 추가</button>
+        </div>
+      </div>
+      <div class="page-body">
+        <!-- 자산 카드 -->
+        <div class="section-header">
+          <span class="section-title">이달 자산 목록</span>
+          <span class="font-semibold" id="total-asset-display" style="color:var(--asset-color)">합계: ₩0</span>
+        </div>
+        <div class="asset-grid" id="asset-grid">
+          <div class="empty-state" style="grid-column:1/-1">
+            <div class="empty-icon">🏦</div>
+            <p>자산을 추가해보세요</p>
+          </div>
+        </div>
+
+        <!-- 자산 추이 차트 -->
+        <div class="chart-card mt-4">
+          <h3>📈 월별 총 자산 추이</h3>
+          <div class="chart-wrap"><canvas id="assetChart"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ===== 거래 추가/수정 모달 ===== -->
+<div class="modal-overlay" id="txModal">
+  <div class="modal">
+    <h2 class="modal-title" id="txModalTitle">거래 추가</h2>
+    <div class="type-tabs">
+      <button class="type-tab income active" id="tabIncome" type="button">+ 수입</button>
+      <button class="type-tab expense" id="tabExpense" type="button">− 지출</button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">금액 (원)</label>
+      <input type="number" class="form-input" id="txAmount" placeholder="0" min="0" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">카테고리</label>
+      <select class="form-select" id="txCategory"></select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">날짜</label>
+      <input type="date" class="form-input" id="txDate" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">메모 (선택)</label>
+      <input type="text" class="form-input" id="txMemo" placeholder="메모를 입력하세요" maxlength="100" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="txCancel">취소</button>
+      <button class="btn btn-primary" id="txSave">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 자산 추가 모달 ===== -->
+<div class="modal-overlay" id="assetModal">
+  <div class="modal">
+    <h2 class="modal-title">자산 추가 / 수정</h2>
+    <div class="form-group">
+      <label class="form-label">자산명</label>
+      <input type="text" class="form-input" id="assetName" placeholder="예금, 적금, 주식 등" maxlength="30" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">금액 (원)</label>
+      <input type="number" class="form-input" id="assetAmount" placeholder="0" min="0" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="assetCancel">취소</button>
+      <button class="btn btn-primary" id="assetSave">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="js/api.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
