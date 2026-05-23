@@ -25,6 +25,15 @@ const api = {
     if (!res.ok) throw new Error(await res.text());
     return res.json();
   },
+  async patch(path, body) {
+    const res = await fetch(BASE + path, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
   async delete(path) {
     const res = await fetch(BASE + path, { method: 'DELETE' });
     if (!res.ok) throw new Error(await res.text());
@@ -37,8 +46,15 @@ const api = {
   addTransaction: (data) => api.post('/transactions', data),
   updateTransaction: (id, data) => api.put(`/transactions/${id}`, data),
   deleteTransaction: (id) => api.delete(`/transactions/${id}`),
+  getAssetCategories: () => api.get('/asset-categories'),
+  addAssetCategory: (data) => api.post('/asset-categories', data),
+  updateAssetCategory: (id, data) => api.put(`/asset-categories/${id}`, data),
+  deleteAssetCategory: (id) => api.delete(`/asset-categories/${id}`),
   getAssets: (year, month) => api.get(`/assets?year=${year}&month=${month}`),
+  getAssetChart: (months = 12) => api.get(`/assets/chart?months=${months}`),
   addAsset: (data) => api.post('/assets', data),
+  updateAsset: (id, data) => api.put(`/assets/${id}`, data),
+  reorderAssets: (orders) => api.patch('/assets/reorder', { orders }),
   deleteAsset: (id) => api.delete(`/assets/${id}`),
   getStats: (year, month) => api.get(`/stats/monthly?year=${year}&month=${month}`),
 };

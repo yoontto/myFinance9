@@ -13,10 +13,11 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, '../frontend')));
 
 // API 라우터
-app.use('/api/categories',   require('./routes/categories'));
-app.use('/api/transactions', require('./routes/transactions'));
-app.use('/api/assets',       require('./routes/assets'));
-app.use('/api/stats',        require('./routes/stats'));
+app.use('/api/categories',        require('./routes/categories'));
+app.use('/api/transactions',      require('./routes/transactions'));
+app.use('/api/asset-categories',  require('./routes/asset_categories'));
+app.use('/api/assets',            require('./routes/assets'));
+app.use('/api/stats',             require('./routes/stats'));
 
 // SPA fallback
 app.get('/{*splat}', (req, res) => {

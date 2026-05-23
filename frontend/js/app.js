@@ -18,7 +18,9 @@ let state = {
   categories: [],
   transactions: [],
   assets: [],
+  assetCategories: [],
   editingTxId: null,
+  editingAssetId: null,
   txType: 'income',
 };
 
@@ -274,31 +276,100 @@ function openEditTx(id) {
 // ===== ASSETS =====
 async function loadAssets() {
   try {
-    state.assets = await api.getAssets(state.assetYear, state.assetMonth);
+    const [assets, chartData] = await Promise.all([
+      api.getAssets(state.assetYear, state.assetMonth),
+      api.getAssetChart(12),
+    ]);
+    state.assets = assets;
+    state.assetCategories = chartData.categories;
     renderAssets();
-    await loadAssetChart();
+    renderAssetPieChart(state.assets, state.assetCategories);
+    renderAssetChart(chartData);
   } catch(e) { console.error(e); }
 }
 
 function renderAssets() {
-  const grid = document.getElementById('asset-grid');
+  const container = document.getElementById('asset-category-list');
   const total = state.assets.reduce((a, b) => a + b.amount, 0);
   document.getElementById('total-asset-display').textContent = '합계: ' + fmt(total);
 
   if (state.assets.length === 0) {
-    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">🏦</div><p>자산을 추가해보세요</p></div>`;
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">🏦</div><p>자산을 추가해보세요</p></div>`;
     return;
   }
-  grid.innerHTML = state.assets.map(a => `
-    <div class="asset-card">
-      <div class="asset-name">${a.name}</div>
-      <div class="asset-amount">${fmt(a.amount)}</div>
-      <button class="asset-delete" data-id="${a.id}" title="삭제">✕</button>
-    </div>
-  `).join('');
-  grid.querySelectorAll('.asset-delete').forEach(btn =>
+
+  // 카테고리별 그룹핑
+  const groupMap = {};
+  state.assetCategories.forEach(cat => {
+    groupMap[cat.id] = { cat, items: [] };
+  });
+  groupMap['null'] = { cat: { id: null, name: '미분류', color: '#94a3b8' }, items: [] };
+
+  state.assets.forEach(a => {
+    const key = a.category_id != null ? a.category_id : 'null';
+    if (!groupMap[key]) groupMap[key] = { cat: { id: a.category_id, name: a.category_name || '미분류', color: a.category_color || '#94a3b8' }, items: [] };
+    groupMap[key].items.push(a);
+  });
+
+  const rendered = Object.values(groupMap)
+    .filter(g => g.items.length > 0)
+    .map(({ cat, items }) => {
+      const groupTotal = items.reduce((s, a) => s + a.amount, 0);
+      const cards = items.map(a => `
+        <div class="asset-card" data-id="${a.id}">
+          <div class="asset-card-content">
+            <div class="asset-name">${a.name}</div>
+            <div class="asset-amount">${fmt(a.amount)}</div>
+          </div>
+          <div class="asset-card-actions">
+            <button class="asset-edit" data-id="${a.id}" title="수정">✏️</button>
+            <button class="asset-delete" data-id="${a.id}" title="삭제">✕</button>
+          </div>
+          <span class="drag-handle" title="드래그하여 순서 변경">⠿</span>
+        </div>
+      `).join('');
+      return `
+        <div class="asset-category-group">
+          <div class="asset-category-header">
+            <div class="asset-cat-label">
+              <span class="asset-cat-dot" style="background:${cat.color}"></span>
+              <span class="asset-cat-name">${cat.name}</span>
+            </div>
+            <span class="asset-cat-total">${fmt(groupTotal)}</span>
+          </div>
+          <div class="asset-grid">${cards}</div>
+        </div>
+      `;
+    }).join('');
+
+  container.innerHTML = rendered;
+  container.querySelectorAll('.asset-edit').forEach(btn =>
+    btn.addEventListener('click', () => {
+      const asset = state.assets.find(a => a.id == btn.dataset.id);
+      if (asset) openAssetModal(asset);
+    })
+  );
+  container.querySelectorAll('.asset-delete').forEach(btn =>
     btn.addEventListener('click', () => deleteAsset(btn.dataset.id))
   );
+
+  container.querySelectorAll('.asset-grid').forEach(grid => {
+    Sortable.create(grid, {
+      animation: 150,
+      handle: '.drag-handle',
+      ghostClass: 'asset-ghost',
+      chosenClass: 'asset-chosen',
+      onEnd: async () => {
+        const orders = [...grid.querySelectorAll('.asset-card')].map((el, idx) => ({
+          id: parseInt(el.dataset.id),
+          sort_order: idx,
+        }));
+        try {
+          await api.reorderAssets(orders);
+        } catch(e) { toast('순서 저장 실패', 'error'); }
+      },
+    });
+  });
 }
 
 async function deleteAsset(id) {
@@ -310,50 +381,146 @@ async function deleteAsset(id) {
   } catch(e) { toast('삭제 실패', 'error'); }
 }
 
-async function loadAssetChart() {
-  try {
-    // 최근 12개월 자산 합계 계산
-    const months = [];
-    const d = new Date();
-    for (let i = 11; i >= 0; i--) {
-      const dt = new Date(d.getFullYear(), d.getMonth() - i, 1);
-      months.push({ year: dt.getFullYear(), month: dt.getMonth() + 1 });
-    }
-    const results = await Promise.all(
-      months.map(m => api.getAssets(m.year, m.month)
-        .then(assets => ({ ...m, total: assets.reduce((a,b) => a+b.amount, 0) }))
-      )
-    );
-    renderAssetChart(results);
-  } catch(e) { console.error(e); }
-}
-
-// 자산 모달
-function openAssetModal() {
-  document.getElementById('assetName').value   = '';
-  document.getElementById('assetAmount').value = '';
+// 자산 추가/수정 모달
+function openAssetModal(asset = null) {
+  state.editingAssetId = asset?.id || null;
+  document.getElementById('assetModalTitle').textContent = asset ? '자산 수정' : '자산 추가';
+  document.getElementById('assetName').value   = asset?.name   || '';
+  document.getElementById('assetAmount').value = asset?.amount || '';
+  populateAssetCategorySelect(asset?.category_id);
   document.getElementById('assetModal').classList.add('open');
   document.getElementById('assetName').focus();
 }
 function closeAssetModal() {
   document.getElementById('assetModal').classList.remove('open');
+  state.editingAssetId = null;
 }
+function populateAssetCategorySelect(selectedId) {
+  const sel = document.getElementById('assetCategorySelect');
+  sel.innerHTML = state.assetCategories.map(c =>
+    `<option value="${c.id}" ${c.id == selectedId ? 'selected' : ''}>${c.name}</option>`
+  ).join('');
+}
+
 document.getElementById('addAssetBtn').addEventListener('click', openAssetModal);
 document.getElementById('assetCancel').addEventListener('click', closeAssetModal);
 document.getElementById('assetModal').addEventListener('click', e => {
   if (e.target === e.currentTarget) closeAssetModal();
 });
 document.getElementById('assetSave').addEventListener('click', async () => {
-  const name   = document.getElementById('assetName').value.trim();
-  const amount = parseInt(document.getElementById('assetAmount').value);
-  if (!name) { toast('자산명을 입력해주세요', 'error'); return; }
+  const name        = document.getElementById('assetName').value.trim();
+  const amount      = parseInt(document.getElementById('assetAmount').value);
+  const category_id = parseInt(document.getElementById('assetCategorySelect').value) || null;
+  if (!name)            { toast('자산명을 입력해주세요', 'error'); return; }
   if (!amount || amount < 0) { toast('금액을 입력해주세요', 'error'); return; }
   try {
-    await api.addAsset({ name, amount, year: state.assetYear, month: state.assetMonth });
-    toast('자산이 저장되었습니다');
+    if (state.editingAssetId) {
+      await api.updateAsset(state.editingAssetId, { name, amount, category_id });
+      toast('자산이 수정되었습니다');
+    } else {
+      await api.addAsset({ name, amount, year: state.assetYear, month: state.assetMonth, category_id });
+      toast('자산이 저장되었습니다');
+    }
     closeAssetModal();
     loadAssets();
   } catch(e) { toast('저장 실패', 'error'); }
+});
+
+// 자산 카테고리 관리 모달
+function openAssetCatModal() {
+  renderCatManageList();
+  document.getElementById('newCatName').value = '';
+  document.getElementById('newCatColor').value = '#3b82f6';
+  document.getElementById('assetCatModal').classList.add('open');
+}
+function closeAssetCatModal() {
+  document.getElementById('assetCatModal').classList.remove('open');
+}
+function renderCatManageList() {
+  const ul = document.getElementById('catManageList');
+  if (!state.assetCategories.length) {
+    ul.innerHTML = '<li style="color:var(--text-muted);font-size:13px;padding:8px 0">카테고리가 없습니다</li>';
+    return;
+  }
+  ul.innerHTML = state.assetCategories.map(c => `
+    <li class="cat-manage-item" data-id="${c.id}">
+      <span class="asset-cat-dot" style="background:${c.color}"></span>
+      <span class="cat-manage-name">${c.name}</span>
+      <div class="cat-manage-actions">
+        <button class="tx-btn edit cat-edit-btn" data-id="${c.id}" data-name="${c.name}" data-color="${c.color}" title="수정">✏️</button>
+        <button class="tx-btn delete cat-delete-btn" data-id="${c.id}" title="삭제">🗑️</button>
+      </div>
+    </li>
+  `).join('');
+
+  ul.querySelectorAll('.cat-edit-btn').forEach(btn =>
+    btn.addEventListener('click', () => startEditCat(btn.dataset.id, btn.dataset.name, btn.dataset.color))
+  );
+  ul.querySelectorAll('.cat-delete-btn').forEach(btn =>
+    btn.addEventListener('click', async () => {
+      if (!confirm('카테고리를 삭제하면 해당 카테고리의 자산이 미분류로 변경됩니다. 계속할까요?')) return;
+      try {
+        await api.deleteAssetCategory(btn.dataset.id);
+        state.assetCategories = await api.getAssetCategories();
+        toast('카테고리가 삭제되었습니다');
+        renderCatManageList();
+        loadAssets();
+      } catch(e) { toast('삭제 실패', 'error'); }
+    })
+  );
+}
+
+function startEditCat(id, name, color) {
+  const li = document.querySelector(`#catManageList li[data-id="${id}"]`);
+  li.innerHTML = `
+    <input type="color" class="color-picker cat-edit-color" value="${color}" />
+    <input type="text" class="form-input cat-edit-name" value="${name}" maxlength="20" />
+    <div class="cat-manage-actions">
+      <button class="btn btn-primary cat-save-btn">저장</button>
+      <button class="btn btn-ghost cat-cancel-btn">취소</button>
+    </div>
+  `;
+  const nameInput = li.querySelector('.cat-edit-name');
+  nameInput.focus();
+  nameInput.select();
+
+  li.querySelector('.cat-save-btn').addEventListener('click', async () => {
+    const newName  = nameInput.value.trim();
+    const newColor = li.querySelector('.cat-edit-color').value;
+    if (!newName) { toast('카테고리명을 입력해주세요', 'error'); return; }
+    try {
+      await api.updateAssetCategory(id, { name: newName, color: newColor });
+      state.assetCategories = await api.getAssetCategories();
+      toast('카테고리가 수정되었습니다');
+      renderCatManageList();
+      loadAssets();
+    } catch(e) { toast('수정 실패', 'error'); }
+  });
+
+  li.querySelector('.cat-cancel-btn').addEventListener('click', renderCatManageList);
+
+  nameInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter')  li.querySelector('.cat-save-btn').click();
+    if (e.key === 'Escape') renderCatManageList();
+  });
+}
+
+document.getElementById('manageCategoriesBtn').addEventListener('click', openAssetCatModal);
+document.getElementById('assetCatClose').addEventListener('click', closeAssetCatModal);
+document.getElementById('assetCatModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeAssetCatModal();
+});
+document.getElementById('addCatBtn').addEventListener('click', async () => {
+  const name  = document.getElementById('newCatName').value.trim();
+  const color = document.getElementById('newCatColor').value;
+  if (!name) { toast('카테고리명을 입력해주세요', 'error'); return; }
+  try {
+    await api.addAssetCategory({ name, color });
+    state.assetCategories = await api.getAssetCategories();
+    toast('카테고리가 추가되었습니다');
+    document.getElementById('newCatName').value = '';
+    renderCatManageList();
+  } catch(e) { toast('추가 실패', 'error'); }
 });
 
 // ===== CATEGORY FILTER 채우기 =====
@@ -373,6 +540,7 @@ async function populateCategoryFilter() {
 async function init() {
   initTheme();
   await populateCategoryFilter();
+  state.assetCategories = await api.getAssetCategories();
 
   // 월 네비게이터 설정
   setupMonthNav('dash-prev',  'dash-next',  'dash-month-display',  'dashYear',  'dashMonth',  loadDashboard);

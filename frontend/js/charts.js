@@ -1,9 +1,10 @@
 // Chart.js 전역 기본 설정
 Chart.defaults.font.family = "'Inter', sans-serif";
 
-let monthlyChartInst = null;
-let categoryChartInst = null;
-let assetChartInst    = null;
+let monthlyChartInst   = null;
+let categoryChartInst  = null;
+let assetChartInst     = null;
+let assetPieChartInst  = null;
 
 function getChartColors() {
   const dark = document.documentElement.getAttribute('data-theme') === 'dark';
@@ -114,63 +115,158 @@ function renderCategoryChart(categoryData) {
   });
 }
 
-// 자산 추이 라인 차트
-function renderAssetChart(data) {
+// 이달 자산 비율 파이 차트
+// assets: [{category_id, category_name, category_color, amount}]
+// categories: [{id, name, color}]
+function renderAssetPieChart(assets, categories) {
   const c = getChartColors();
-  // data: [{year, month, total}]
-  const labels = data.map(d => `${d.year}.${String(d.month).padStart(2,'0')}`);
-  const values = data.map(d => d.total);
 
-  if (assetChartInst) assetChartInst.destroy();
-  assetChartInst = new Chart(document.getElementById('assetChart'), {
-    type: 'line',
+  const groupMap = {};
+  categories.forEach(cat => {
+    groupMap[cat.id] = { name: cat.name, color: cat.color, total: 0 };
+  });
+  groupMap['null'] = { name: '미분류', color: '#94a3b8', total: 0 };
+
+  assets.forEach(a => {
+    const key = a.category_id != null ? a.category_id : 'null';
+    if (groupMap[key]) groupMap[key].total += a.amount;
+  });
+
+  const entries = Object.values(groupMap).filter(e => e.total > 0);
+
+  if (assetPieChartInst) assetPieChartInst.destroy();
+
+  if (entries.length === 0) {
+    const ctx = document.getElementById('assetPieChart').getContext('2d');
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    return;
+  }
+
+  const grandTotal = entries.reduce((s, e) => s + e.total, 0);
+
+  assetPieChartInst = new Chart(document.getElementById('assetPieChart'), {
+    type: 'pie',
+    plugins: [ChartDataLabels],
     data: {
-      labels,
+      labels: entries.map(e => e.name),
       datasets: [{
-        label: '총 자산',
-        data: values,
-        borderColor: '#3b82f6',
-        backgroundColor: 'rgba(59,130,246,0.12)',
-        borderWidth: 2.5,
-        pointBackgroundColor: '#3b82f6',
-        pointRadius: 5,
-        pointHoverRadius: 7,
-        fill: true,
-        tension: 0.4,
+        data: entries.map(e => e.total),
+        backgroundColor: entries.map(e => e.color + 'cc'),
+        borderColor:     entries.map(e => e.color),
+        borderWidth: 2,
+        hoverOffset: 8,
+        radius: '85%',
       }],
     },
     options: {
-      responsive: true, maintainAspectRatio: false,
+      responsive: true,
+      maintainAspectRatio: false,
       plugins: {
-        legend: { labels: { color: c.text } },
+        legend: {
+          position: 'right',
+          align: 'center',
+          labels: { color: c.text, font: { size: 11 }, padding: 10, boxWidth: 12 },
+        },
         tooltip: {
           backgroundColor: c.tooltip,
           titleColor: c.text,
           bodyColor: c.text,
           borderColor: '#e2e8f0',
           borderWidth: 1,
-          callbacks: { label: ctx => ' ' + fmt(ctx.raw) },
+          callbacks: {
+            label: ctx => ` ${fmt(ctx.raw)} (${grandTotal > 0 ? ((ctx.raw / grandTotal) * 100).toFixed(1) : 0}%)`,
+          },
+        },
+        datalabels: {
+          formatter: (value) =>
+            grandTotal > 0 ? ((value / grandTotal) * 100).toFixed(1) + '%' : '',
+          color: '#fff',
+          font: { weight: '700', size: 12 },
+          textShadowBlur: 4,
+          textShadowColor: 'rgba(0,0,0,0.45)',
+          display: (ctx) => (ctx.dataset.data[ctx.dataIndex] / grandTotal) >= 0.03,
+        },
+      },
+    },
+  });
+}
+
+// 자산 추이 스택 바 차트
+// chartData: { categories: [{id, name, color}], months: [{label, catTotals: [{id, total}], uncategorized}] }
+function renderAssetChart(chartData) {
+  const c = getChartColors();
+  const { categories, months } = chartData;
+  const labels = months.map(m => m.label);
+
+  const datasets = categories.map(cat => ({
+    label: cat.name,
+    data: months.map(m => m.catTotals.find(ct => ct.id === cat.id)?.total || 0),
+    backgroundColor: cat.color + 'cc',
+    borderColor: cat.color,
+    borderWidth: 1,
+    borderRadius: 3,
+    stack: 'assets',
+  }));
+
+  const hasUncategorized = months.some(m => m.uncategorized > 0);
+  if (hasUncategorized) {
+    datasets.push({
+      label: '미분류',
+      data: months.map(m => m.uncategorized),
+      backgroundColor: '#94a3b8cc',
+      borderColor: '#94a3b8',
+      borderWidth: 1,
+      borderRadius: 3,
+      stack: 'assets',
+    });
+  }
+
+  if (assetChartInst) assetChartInst.destroy();
+  assetChartInst = new Chart(document.getElementById('assetChart'), {
+    type: 'bar',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { color: c.text, font: { size: 11 }, padding: 12 } },
+        tooltip: {
+          backgroundColor: c.tooltip,
+          titleColor: c.text,
+          bodyColor: c.text,
+          borderColor: '#e2e8f0',
+          borderWidth: 1,
+          callbacks: { label: ctx => ` ${ctx.dataset.label}: ${fmt(ctx.raw)}` },
         },
       },
       scales: {
-        x: { grid: { color: c.grid }, ticks: { color: c.text } },
-        y: { grid: { color: c.grid }, ticks: { color: c.text, callback: v => fmt(v) } },
+        x: { stacked: true, grid: { color: c.grid }, ticks: { color: c.text } },
+        y: { stacked: true, grid: { color: c.grid }, ticks: { color: c.text, callback: v => `${(v / 1000000).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}백만` } },
       },
     },
   });
 }
 
 function refreshChartColors() {
-  // 테마 전환 시 차트 재렌더링
+  const c = getChartColors();
   if (monthlyChartInst) {
-    const c = getChartColors();
     const scales = monthlyChartInst.options.scales;
     scales.x.grid.color = c.grid; scales.x.ticks.color = c.text;
     scales.y.grid.color = c.grid; scales.y.ticks.color = c.text;
     monthlyChartInst.update();
   }
   if (categoryChartInst) {
-    categoryChartInst.options.plugins.legend.labels.color = getChartColors().text;
+    categoryChartInst.options.plugins.legend.labels.color = c.text;
     categoryChartInst.update();
+  }
+  if (assetChartInst) {
+    const scales = assetChartInst.options.scales;
+    scales.x.grid.color = c.grid; scales.x.ticks.color = c.text;
+    scales.y.grid.color = c.grid; scales.y.ticks.color = c.text;
+    assetChartInst.options.plugins.legend.labels.color = c.text;
+    assetChartInst.update();
+  }
+  if (assetPieChartInst) {
+    assetPieChartInst.options.plugins.legend.labels.color = c.text;
+    assetPieChartInst.update();
   }
 }

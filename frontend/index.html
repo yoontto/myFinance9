@@ -24,14 +24,14 @@
       </div>
     </div>
     <nav class="sidebar-nav">
+      <button class="nav-item" data-page="assets" id="nav-assets">
+        <span class="nav-icon">🏦</span> 자산 관리
+      </button>
       <button class="nav-item active" data-page="dashboard" id="nav-dashboard">
         <span class="nav-icon">📊</span> 대시보드
       </button>
       <button class="nav-item" data-page="transactions" id="nav-transactions">
         <span class="nav-icon">💳</span> 수입 / 지출
-      </button>
-      <button class="nav-item" data-page="assets" id="nav-assets">
-        <span class="nav-icon">🏦</span> 자산 관리
       </button>
     </nav>
     <div class="sidebar-footer">
@@ -163,27 +163,29 @@
             <span class="month-display" id="asset-month-display">—</span>
             <button id="asset-next" aria-label="다음 달">›</button>
           </div>
+          <button class="btn btn-ghost" id="manageCategoriesBtn">⚙ 카테고리</button>
           <button class="btn btn-primary" id="addAssetBtn">＋ 자산 추가</button>
         </div>
       </div>
       <div class="page-body">
-        <!-- 자산 카드 -->
+        <!-- 차트 영역 (최상단) -->
+        <div class="charts-grid asset-charts-grid mb-6">
+          <div class="chart-card">
+            <h3>🍩 이달 자산 비율</h3>
+            <div class="chart-wrap chart-wrap-lg"><canvas id="assetPieChart"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <h3>📈 월별 자산 추이 (카테고리별)</h3>
+            <div class="chart-wrap chart-wrap-lg"><canvas id="assetChart"></canvas></div>
+          </div>
+        </div>
+
+        <!-- 카테고리별 자산 목록 -->
         <div class="section-header">
           <span class="section-title">이달 자산 목록</span>
           <span class="font-semibold" id="total-asset-display" style="color:var(--asset-color)">합계: ₩0</span>
         </div>
-        <div class="asset-grid" id="asset-grid">
-          <div class="empty-state" style="grid-column:1/-1">
-            <div class="empty-icon">🏦</div>
-            <p>자산을 추가해보세요</p>
-          </div>
-        </div>
-
-        <!-- 자산 추이 차트 -->
-        <div class="chart-card mt-4">
-          <h3>📈 월별 총 자산 추이</h3>
-          <div class="chart-wrap"><canvas id="assetChart"></canvas></div>
-        </div>
+        <div id="asset-category-list"></div>
       </div>
     </div>
 
@@ -224,10 +226,14 @@
 <!-- ===== 자산 추가 모달 ===== -->
 <div class="modal-overlay" id="assetModal">
   <div class="modal">
-    <h2 class="modal-title">자산 추가 / 수정</h2>
+    <h2 class="modal-title" id="assetModalTitle">자산 추가</h2>
     <div class="form-group">
-      <label class="form-label">자산명</label>
-      <input type="text" class="form-input" id="assetName" placeholder="예금, 적금, 주식 등" maxlength="30" />
+      <label class="form-label">대분류 카테고리</label>
+      <select class="form-select" id="assetCategorySelect"></select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">자산명 (소분류)</label>
+      <input type="text" class="form-input" id="assetName" placeholder="예: 국민은행 예금, 삼성전자" maxlength="30" />
     </div>
     <div class="form-group">
       <label class="form-label">금액 (원)</label>
@@ -240,11 +246,29 @@
   </div>
 </div>
 
+<!-- ===== 자산 카테고리 관리 모달 ===== -->
+<div class="modal-overlay" id="assetCatModal">
+  <div class="modal">
+    <h2 class="modal-title">자산 카테고리 관리</h2>
+    <ul class="asset-cat-manage-list" id="catManageList"></ul>
+    <div class="asset-cat-add-row">
+      <input type="color" id="newCatColor" value="#3b82f6" class="color-picker" />
+      <input type="text" class="form-input" id="newCatName" placeholder="새 카테고리명" maxlength="20" />
+      <button class="btn btn-primary" id="addCatBtn">추가</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="assetCatClose">닫기</button>
+    </div>
+  </div>
+</div>
+
 <!-- Toast -->
 <div class="toast-container" id="toastContainer"></div>
 
 <!-- Scripts -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <script src="js/api.js"></script>
 <script src="js/charts.js"></script>
 <script src="js/app.js"></script>

@@ -28,15 +28,28 @@ db.exec(`
     FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
   );
 
+  CREATE TABLE IF NOT EXISTS asset_categories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    color TEXT NOT NULL DEFAULT '#3b82f6',
+    created_at TEXT DEFAULT (datetime('now','localtime'))
+  );
+
   CREATE TABLE IF NOT EXISTS assets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     amount INTEGER NOT NULL,
     year INTEGER NOT NULL,
     month INTEGER NOT NULL,
-    created_at TEXT DEFAULT (datetime('now','localtime'))
+    category_id INTEGER,
+    created_at TEXT DEFAULT (datetime('now','localtime')),
+    FOREIGN KEY (category_id) REFERENCES asset_categories(id) ON DELETE SET NULL
   );
 `);
+
+// 기존 DB 마이그레이션
+try { db.exec('ALTER TABLE assets ADD COLUMN category_id INTEGER'); } catch(e) { /* already exists */ }
+try { db.exec('ALTER TABLE assets ADD COLUMN sort_order INTEGER DEFAULT 0'); } catch(e) { /* already exists */ }
 
 // 기본 카테고리 삽입 (없을 때만)
 const count = db.prepare('SELECT COUNT(*) as cnt FROM categories').get();
@@ -63,6 +76,18 @@ if (count.cnt === 0) {
   defaults.forEach(([name, type, color, icon]) =>
     insertCategory.run(name, type, color, icon)
   );
+}
+
+// 기본 자산 카테고리 삽입 (없을 때만)
+const assetCatCount = db.prepare('SELECT COUNT(*) as cnt FROM asset_categories').get();
+if (assetCatCount.cnt === 0) {
+  const insertAssetCat = db.prepare('INSERT INTO asset_categories (name, color) VALUES (?, ?)');
+  [
+    ['금융자산', '#3b82f6'],
+    ['부동산',   '#10b981'],
+    ['투자자산', '#f59e0b'],
+    ['기타자산', '#8b5cf6'],
+  ].forEach(([name, color]) => insertAssetCat.run(name, color));
 }
 
 module.exports = db;
