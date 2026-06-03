@@ -36,8 +36,8 @@ function renderMonthlyChart(monthlyData) {
         {
           label: '수입',
           data: incomeData,
-          backgroundColor: 'rgba(16,185,129,0.75)',
-          borderColor:     'rgba(16,185,129,1)',
+          backgroundColor: '#33d9b2cc',
+          borderColor:     '#33d9b2',
           borderWidth: 1,
           borderRadius: 6,
           borderSkipped: false,
@@ -45,8 +45,8 @@ function renderMonthlyChart(monthlyData) {
         {
           label: '지출',
           data: expenseData,
-          backgroundColor: 'rgba(239,68,68,0.65)',
-          borderColor:     'rgba(239,68,68,1)',
+          backgroundColor: '#ff5252cc',
+          borderColor:     '#ff5252',
           borderWidth: 1,
           borderRadius: 6,
           borderSkipped: false,
@@ -195,7 +195,9 @@ function renderAssetPieChart(assets, categories) {
 // chartData: { categories: [{id, name, color}], months: [{label, catTotals: [{id, total}], uncategorized}] }
 function renderAssetChart(chartData) {
   const c = getChartColors();
-  const { categories, months } = chartData;
+  const { categories } = chartData;
+  // 현재 월이 가장 왼쪽, 이전 달이 오른쪽으로 나열
+  const months = [...chartData.months].reverse();
   const labels = months.map(m => m.label);
 
   const datasets = categories.map(cat => ({

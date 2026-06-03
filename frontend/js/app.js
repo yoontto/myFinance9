@@ -315,19 +315,20 @@ function renderAssets() {
     .filter(g => g.items.length > 0)
     .map(({ cat, items }) => {
       const groupTotal = items.reduce((s, a) => s + a.amount, 0);
-      const cards = items.map(a => `
+      const cards = items.map(a => {
+        const displayName = (a.alias && a.alias.trim()) ? a.alias.trim() : a.name;
+        return `
         <div class="asset-card" data-id="${a.id}">
           <div class="asset-card-content">
-            <div class="asset-name">${a.name}</div>
+            <div class="asset-name">${displayName}</div>
             <div class="asset-amount">${fmt(a.amount)}</div>
           </div>
           <div class="asset-card-actions">
             <button class="asset-edit" data-id="${a.id}" title="수정">✏️</button>
             <button class="asset-delete" data-id="${a.id}" title="삭제">✕</button>
           </div>
-          <span class="drag-handle" title="드래그하여 순서 변경">⠿</span>
         </div>
-      `).join('');
+      `;}).join('');
       return `
         <div class="asset-category-group">
           <div class="asset-category-header">
@@ -337,7 +338,7 @@ function renderAssets() {
             </div>
             <span class="asset-cat-total">${fmt(groupTotal)}</span>
           </div>
-          <div class="asset-grid">${cards}</div>
+          <div class="asset-grid" data-cat-id="${cat.id ?? ''}">${cards}</div>
         </div>
       `;
     }).join('');
@@ -353,20 +354,39 @@ function renderAssets() {
     btn.addEventListener('click', () => deleteAsset(btn.dataset.id))
   );
 
-  container.querySelectorAll('.asset-grid').forEach(grid => {
+  const allGrids = [...container.querySelectorAll('.asset-grid')];
+  allGrids.forEach(grid => {
     Sortable.create(grid, {
       animation: 150,
-      handle: '.drag-handle',
+      group: 'assets',           // 다른 카테고리 그룹으로 이동 허용
       ghostClass: 'asset-ghost',
       chosenClass: 'asset-chosen',
-      onEnd: async () => {
-        const orders = [...grid.querySelectorAll('.asset-card')].map((el, idx) => ({
-          id: parseInt(el.dataset.id),
-          sort_order: idx,
-        }));
-        try {
-          await api.reorderAssets(orders);
-        } catch(e) { toast('순서 저장 실패', 'error'); }
+      onEnd: async (evt) => {
+        const movedId = parseInt(evt.item.dataset.id);
+        const fromGrid = evt.from;
+        const toGrid   = evt.to;
+        const crossCategory = fromGrid !== toGrid;
+
+        if (crossCategory) {
+          // 대상 카테고리 id 읽기 (빈 문자열이면 null = 미분류)
+          const newCatIdRaw = toGrid.dataset.catId;
+          const newCatId = newCatIdRaw !== '' ? parseInt(newCatIdRaw) : null;
+          const asset = state.assets.find(a => a.id === movedId);
+          if (!asset) return;
+          try {
+            await api.updateAsset(movedId, { name: asset.name, amount: asset.amount, category_id: newCatId });
+            await loadAssets(); // 차트·합계 전체 갱신
+          } catch(e) { toast('카테고리 이동 실패', 'error'); loadAssets(); }
+        } else {
+          // 같은 카테고리 내 순서 변경
+          const orders = [...toGrid.querySelectorAll('.asset-card')].map((el, idx) => ({
+            id: parseInt(el.dataset.id),
+            sort_order: idx,
+          }));
+          try {
+            await api.reorderAssets(orders);
+          } catch(e) { toast('순서 저장 실패', 'error'); }
+        }
       },
     });
   });
@@ -384,12 +404,29 @@ async function deleteAsset(id) {
 // 자산 추가/수정 모달
 function openAssetModal(asset = null) {
   state.editingAssetId = asset?.id || null;
+  const isExcel = asset?.is_excel === 1;
+
   document.getElementById('assetModalTitle').textContent = asset ? '자산 수정' : '자산 추가';
-  document.getElementById('assetName').value   = asset?.name   || '';
+
+  // 원본명 필드: Excel 자산이면 read-only 표시
+  const nameInput = document.getElementById('assetName');
+  const nameLabel = document.getElementById('assetNameLabel');
+  nameInput.value = asset?.name || '';
+  nameInput.readOnly = isExcel;
+  nameInput.style.opacity = isExcel ? '0.55' : '';
+  nameInput.style.cursor  = isExcel ? 'default' : '';
+  nameLabel.textContent   = isExcel ? '자산명 (원본 — 수정 불가)' : '자산명 (소분류)';
+
+  // 별칭 필드: Excel 자산일 때만 표시
+  const aliasGroup = document.getElementById('assetAliasGroup');
+  const aliasInput = document.getElementById('assetAlias');
+  aliasGroup.style.display = isExcel ? '' : 'none';
+  aliasInput.value = asset?.alias || '';
+
   document.getElementById('assetAmount').value = asset?.amount || '';
   populateAssetCategorySelect(asset?.category_id);
   document.getElementById('assetModal').classList.add('open');
-  document.getElementById('assetName').focus();
+  isExcel ? aliasInput.focus() : nameInput.focus();
 }
 function closeAssetModal() {
   document.getElementById('assetModal').classList.remove('open');
@@ -409,13 +446,14 @@ document.getElementById('assetModal').addEventListener('click', e => {
 });
 document.getElementById('assetSave').addEventListener('click', async () => {
   const name        = document.getElementById('assetName').value.trim();
+  const alias       = document.getElementById('assetAlias').value.trim() || null;
   const amount      = parseInt(document.getElementById('assetAmount').value);
   const category_id = parseInt(document.getElementById('assetCategorySelect').value) || null;
   if (!name)            { toast('자산명을 입력해주세요', 'error'); return; }
   if (!amount || amount < 0) { toast('금액을 입력해주세요', 'error'); return; }
   try {
     if (state.editingAssetId) {
-      await api.updateAsset(state.editingAssetId, { name, amount, category_id });
+      await api.updateAsset(state.editingAssetId, { name, alias, amount, category_id });
       toast('자산이 수정되었습니다');
     } else {
       await api.addAsset({ name, amount, year: state.assetYear, month: state.assetMonth, category_id });
@@ -430,7 +468,7 @@ document.getElementById('assetSave').addEventListener('click', async () => {
 function openAssetCatModal() {
   renderCatManageList();
   document.getElementById('newCatName').value = '';
-  document.getElementById('newCatColor').value = '#3b82f6';
+  document.getElementById('newCatColor').value = '#34ace0';
   document.getElementById('assetCatModal').classList.add('open');
 }
 function closeAssetCatModal() {
@@ -521,6 +559,211 @@ document.getElementById('addCatBtn').addEventListener('click', async () => {
     document.getElementById('newCatName').value = '';
     renderCatManageList();
   } catch(e) { toast('추가 실패', 'error'); }
+});
+
+// ===== 엑셀 업로드 모달 =====
+let excelPreviewItems = null;
+let excelSelectedFile = null;  // 드래그&드롭/파일선택 모두 여기에 저장
+let excelUnusedCandidates = []; // 미사용 카테고리 후보 전체 (DB에 있고 이달 자산 없는 것)
+
+function openExcelModal() {
+  excelPreviewItems = null;
+  excelSelectedFile = null;
+  excelUnusedCandidates = [];
+  document.getElementById('excelStep1').style.display = '';
+  document.getElementById('excelStep2').style.display = 'none';
+  document.getElementById('excelError').style.display = 'none';
+  document.getElementById('excelFileInfo').style.display = 'none';
+  document.getElementById('excelFileInput').value = '';
+  document.getElementById('excelParse').style.display = 'none';
+  document.getElementById('excelImport').style.display = 'none';
+  document.getElementById('excelModal').classList.add('open');
+}
+function closeExcelModal() {
+  document.getElementById('excelModal').classList.remove('open');
+}
+
+document.getElementById('excelUploadBtn').addEventListener('click', openExcelModal);
+document.getElementById('excelCancel').addEventListener('click', closeExcelModal);
+document.getElementById('excelModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeExcelModal();
+});
+
+// 드롭존 클릭 → 파일 선택
+const dropZone = document.getElementById('excelDropZone');
+const fileInput = document.getElementById('excelFileInput');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) setExcelFile(file);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) setExcelFile(fileInput.files[0]);
+});
+document.getElementById('excelFileClear').addEventListener('click', () => {
+  excelSelectedFile = null;
+  fileInput.value = '';
+  document.getElementById('excelFileInfo').style.display = 'none';
+  document.getElementById('excelParse').style.display = 'none';
+  document.getElementById('excelError').style.display = 'none';
+});
+
+function setExcelFile(file) {
+  excelSelectedFile = file;  // 드래그&드롭/클릭 모두 이 변수에 저장
+  document.getElementById('excelFileName').textContent = file.name;
+  document.getElementById('excelFileInfo').style.display = 'flex';
+  document.getElementById('excelParse').style.display = '';
+  document.getElementById('excelError').style.display = 'none';
+  document.getElementById('excelImport').style.display = 'none';
+  document.getElementById('excelStep2').style.display = 'none';
+}
+
+// 미리보기 버튼
+document.getElementById('excelParse').addEventListener('click', async () => {
+  const file = excelSelectedFile;  // fileInput.files[0] 대신 공통 변수 사용
+  if (!file) return;
+  const btn = document.getElementById('excelParse');
+  btn.disabled = true;
+  btn.textContent = '분석 중...';
+  document.getElementById('excelError').style.display = 'none';
+  try {
+    const [result, assets, allCats] = await Promise.all([
+      api.uploadExcel(file),
+      api.getAssets(state.assetYear, state.assetMonth),
+      api.getAssetCategories(),
+    ]);
+    excelPreviewItems = result.preview;
+    renderExcelPreview(excelPreviewItems, allCats);
+    await renderUnusedCategories(assets, allCats);
+    document.getElementById('excelStep1').style.display = 'none';
+    document.getElementById('excelStep2').style.display = '';
+    document.getElementById('excelParse').style.display = 'none';
+    document.getElementById('excelImport').style.display = '';
+  } catch (e) {
+    const errEl = document.getElementById('excelError');
+    errEl.textContent = e.message;
+    errEl.style.display = '';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '미리보기';
+  }
+});
+
+async function renderUnusedCategories(currentAssets, allCats) {
+  // 이달 자산에 사용된 카테고리 id 집합
+  const usedIds = new Set(currentAssets.map(a => a.category_id).filter(id => id != null));
+  // DB 카테고리 중 이달 자산이 없는 것을 후보로 보관
+  excelUnusedCandidates = allCats.filter(c => !usedIds.has(c.id));
+  refreshUnusedList();
+}
+
+// 셀렉트 변경마다 호출 — 현재 미리보기에서 사용 중인 카테고리는 목록에서 제외
+function refreshUnusedList() {
+  const section = document.getElementById('excelUnusedSection');
+  const list = document.getElementById('excelUnusedList');
+
+  // 현재 체크 상태 보존
+  const checkedIds = new Set(
+    [...document.querySelectorAll('#excelUnusedList input:checked')].map(cb => cb.value)
+  );
+
+  // 미리보기에서 현재 선택된 카테고리명 집합
+  const inUseNames = new Set((excelPreviewItems || []).map(it => it.category));
+
+  // 후보 중 현재 미리보기에 없는 것만 표시
+  const visible = excelUnusedCandidates.filter(c => !inUseNames.has(c.name));
+
+  if (visible.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+
+  list.innerHTML = visible.map(c => `
+    <label class="excel-unused-item">
+      <input type="checkbox" value="${c.id}" ${checkedIds.has(String(c.id)) ? 'checked' : ''} />
+      <span class="asset-cat-dot" style="background:${c.color}"></span>
+      <span>${c.name}</span>
+    </label>
+  `).join('');
+  section.style.display = '';
+}
+
+function renderExcelPreview(items, allCats) {
+  const tbody = document.getElementById('excelPreviewBody');
+  const countEl = document.getElementById('excelPreviewCount');
+  const monthEl = document.getElementById('excelTargetMonth');
+  monthEl.textContent = `${state.assetYear}년 ${state.assetMonth}월`;
+  countEl.textContent = `총 ${items.length}건`;
+
+  // 셀렉트 옵션: 기존 카테고리 + 엑셀에서 새로 등장한 카테고리명
+  const existingNames = new Set(allCats.map(c => c.name));
+  const allOptions = [
+    ...allCats.map(c => c.name),
+    ...[...new Set(items.map(it => it.category))].filter(n => !existingNames.has(n)),
+  ];
+
+  tbody.innerHTML = items.map((it, idx) => `
+    <tr>
+      <td>
+        <select class="excel-cat-select form-select" data-idx="${idx}" style="font-size:13px;padding:4px 8px;min-width:120px">
+          ${allOptions.map(name => `<option value="${name}" ${name === it.category ? 'selected' : ''}>${name}</option>`).join('')}
+        </select>
+      </td>
+      <td style="color:var(--text-muted);font-size:12px">${it.name}</td>
+      <td>
+        <input class="excel-alias-input form-input" data-idx="${idx}"
+          value="${it.alias || ''}" placeholder="별칭 (선택)"
+          style="font-size:13px;padding:4px 8px;min-width:100px" maxlength="30" />
+      </td>
+      <td style="text-align:right">${Number(it.amount).toLocaleString('ko-KR')}원</td>
+    </tr>
+  `).join('');
+
+  // 셀렉트 변경 시 excelPreviewItems 반영 + 미사용 카테고리 목록 갱신
+  tbody.querySelectorAll('.excel-cat-select').forEach(sel => {
+    sel.addEventListener('change', () => {
+      excelPreviewItems[parseInt(sel.dataset.idx)].category = sel.value;
+      refreshUnusedList();
+    });
+  });
+
+  // 별칭 입력 시 excelPreviewItems 반영
+  tbody.querySelectorAll('.excel-alias-input').forEach(inp => {
+    inp.addEventListener('input', () => {
+      excelPreviewItems[parseInt(inp.dataset.idx)].alias = inp.value;
+    });
+  });
+}
+
+// 등록하기 버튼
+document.getElementById('excelImport').addEventListener('click', async () => {
+  if (!excelPreviewItems || excelPreviewItems.length === 0) return;
+  const btn = document.getElementById('excelImport');
+  btn.disabled = true;
+  btn.textContent = '등록 중...';
+  try {
+    // 체크된 미사용 카테고리 삭제
+    const checked = [...document.querySelectorAll('#excelUnusedList input:checked')];
+    await Promise.all(checked.map(cb => api.deleteAssetCategory(cb.value)));
+
+    const result = await api.importExcel(excelPreviewItems, state.assetYear, state.assetMonth);
+    const deletedMsg = checked.length ? ` (카테고리 ${checked.length}개 삭제)` : '';
+    toast(`${result.count}건의 자산이 등록되었습니다${deletedMsg}`);
+    closeExcelModal();
+    loadAssets();
+  } catch (e) {
+    const errEl = document.getElementById('excelError');
+    errEl.textContent = e.message;
+    errEl.style.display = '';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '등록하기';
+  }
 });
 
 // ===== CATEGORY FILTER 채우기 =====

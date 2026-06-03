@@ -57,4 +57,13 @@ const api = {
   reorderAssets: (orders) => api.patch('/assets/reorder', { orders }),
   deleteAsset: (id) => api.delete(`/assets/${id}`),
   getStats: (year, month) => api.get(`/stats/monthly?year=${year}&month=${month}`),
+
+  async uploadExcel(file) {
+    const form = new FormData();
+    form.append('file', file);
+    const res = await fetch(BASE + '/excel/upload', { method: 'POST', body: form });
+    if (!res.ok) throw new Error((await res.json()).error || '업로드 실패');
+    return res.json();
+  },
+  importExcel: (items, year, month) => api.post('/excel/import', { items, year, month }),
 };

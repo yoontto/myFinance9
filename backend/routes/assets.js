@@ -97,12 +97,13 @@ router.patch('/reorder', (req, res) => {
 
 // 자산 수정
 router.put('/:id', (req, res) => {
-  const { name, amount, category_id } = req.body;
+  const { name, amount, category_id, alias } = req.body;
   const row = db.prepare('SELECT * FROM assets WHERE id=?').get(req.params.id);
   if (!row) return res.status(404).json({ error: '자산을 찾을 수 없습니다.' });
   if (!name || amount === undefined) return res.status(400).json({ error: '필수 항목이 누락되었습니다.' });
-  db.prepare('UPDATE assets SET name=?, amount=?, category_id=? WHERE id=?')
-    .run(name, amount, category_id || null, req.params.id);
+  const aliasVal = (alias || '').trim() || null;
+  db.prepare('UPDATE assets SET name=?, amount=?, category_id=?, alias=? WHERE id=?')
+    .run(name, amount, category_id || null, aliasVal, req.params.id);
   res.json(db.prepare(`
     SELECT a.*, ac.name as category_name, ac.color as category_color
     FROM assets a LEFT JOIN asset_categories ac ON a.category_id = ac.id

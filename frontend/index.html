@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>myFinance9 — 스마트 가계부</title>
   <meta name="description" content="수입, 지출, 자산을 한 눈에 관리하는 스마트 개인 가계부 앱" />
+  <link rel="icon" type="image/png" href="image/logo.png" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -17,7 +18,7 @@
   <!-- Sidebar -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-logo">
-      <div class="logo-icon">💰</div>
+      <div class="logo-icon"><img src="image/logo.png" alt="logo" style="width:48px;height:48px;object-fit:contain;" /></div>
       <div>
         <div class="logo-text">myFinance9</div>
         <div class="logo-sub">스마트 가계부</div>
@@ -163,6 +164,7 @@
             <span class="month-display" id="asset-month-display">—</span>
             <button id="asset-next" aria-label="다음 달">›</button>
           </div>
+          <button class="btn btn-ghost" id="excelUploadBtn">📂 엑셀로 등록</button>
           <button class="btn btn-ghost" id="manageCategoriesBtn">⚙ 카테고리</button>
           <button class="btn btn-primary" id="addAssetBtn">＋ 자산 추가</button>
         </div>
@@ -232,8 +234,12 @@
       <select class="form-select" id="assetCategorySelect"></select>
     </div>
     <div class="form-group">
-      <label class="form-label">자산명 (소분류)</label>
+      <label class="form-label" id="assetNameLabel">자산명 (소분류)</label>
       <input type="text" class="form-input" id="assetName" placeholder="예: 국민은행 예금, 삼성전자" maxlength="30" />
+    </div>
+    <div class="form-group" id="assetAliasGroup" style="display:none">
+      <label class="form-label">별칭 <span class="text-muted text-sm">(화면에 표시될 이름)</span></label>
+      <input type="text" class="form-input" id="assetAlias" placeholder="별칭을 입력하세요" maxlength="30" />
     </div>
     <div class="form-group">
       <label class="form-label">금액 (원)</label>
@@ -248,7 +254,7 @@
 
 <!-- ===== 자산 카테고리 관리 모달 ===== -->
 <div class="modal-overlay" id="assetCatModal">
-  <div class="modal">
+  <div class="modal modal-cat">
     <h2 class="modal-title">자산 카테고리 관리</h2>
     <ul class="asset-cat-manage-list" id="catManageList"></ul>
     <div class="asset-cat-add-row">
@@ -258,6 +264,62 @@
     </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" id="assetCatClose">닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 엑셀 업로드 모달 ===== -->
+<div class="modal-overlay" id="excelModal">
+  <div class="modal modal-lg">
+    <h2 class="modal-title">📂 이달의 자산 엑셀로 등록하기</h2>
+
+    <!-- Step 1: 파일 선택 -->
+    <div id="excelStep1">
+      <p class="text-muted text-sm" style="margin-bottom:16px">
+        엑셀 파일에서 <strong>'재무현황'</strong> 표를 자동으로 찾아 자산을 등록합니다.<br>
+        <strong>항목</strong> 컬럼 → 카테고리(대분류) &nbsp;|&nbsp; <strong>상품명</strong> 컬럼 → 자산명(소분류)
+      </p>
+      <div class="excel-drop-zone" id="excelDropZone">
+        <div class="excel-drop-icon">📊</div>
+        <div class="excel-drop-text">엑셀 파일을 끌어다 놓거나 클릭하여 선택</div>
+        <div class="text-muted text-sm">.xlsx, .xls 파일 지원</div>
+        <input type="file" id="excelFileInput" accept=".xlsx,.xls" style="display:none" />
+      </div>
+      <div id="excelFileInfo" style="display:none" class="excel-file-info">
+        <span id="excelFileName"></span>
+        <button class="btn btn-ghost text-sm" id="excelFileClear">✕</button>
+      </div>
+    </div>
+
+    <!-- Step 2: 미리보기 -->
+    <div id="excelStep2" style="display:none">
+      <div class="excel-preview-header">
+        <span id="excelPreviewCount"></span>
+        <span class="text-muted text-sm">등록 연월: <strong id="excelTargetMonth"></strong></span>
+      </div>
+      <div class="excel-step2-body">
+        <div class="excel-preview-table-wrap">
+          <table class="excel-preview-table">
+            <thead>
+              <tr><th>카테고리(대분류)</th><th>자산명(원본)</th><th>별칭</th><th style="text-align:right">금액</th></tr>
+            </thead>
+            <tbody id="excelPreviewBody"></tbody>
+          </table>
+        </div>
+        <!-- 미사용 카테고리 삭제 (Step2 우측) -->
+        <div id="excelUnusedSection" class="excel-unused-section" style="display:none">
+          <div class="excel-unused-title">🗑️ 이달 자산이 없는 카테고리<br><span style="font-weight:400;font-size:12px">체크하면 등록 시 삭제됩니다</span></div>
+          <div class="excel-unused-list" id="excelUnusedList"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="excelError" class="excel-error" style="display:none"></div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="excelCancel">취소</button>
+      <button class="btn btn-primary" id="excelParse" style="display:none">미리보기</button>
+      <button class="btn btn-primary" id="excelImport" style="display:none">등록하기</button>
     </div>
   </div>
 </div>

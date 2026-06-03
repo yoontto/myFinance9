@@ -50,6 +50,25 @@ db.exec(`
 // 기존 DB 마이그레이션
 try { db.exec('ALTER TABLE assets ADD COLUMN category_id INTEGER'); } catch(e) { /* already exists */ }
 try { db.exec('ALTER TABLE assets ADD COLUMN sort_order INTEGER DEFAULT 0'); } catch(e) { /* already exists */ }
+try { db.exec('ALTER TABLE assets ADD COLUMN alias TEXT'); } catch(e) { /* already exists */ }
+try { db.exec('ALTER TABLE assets ADD COLUMN is_excel INTEGER DEFAULT 0'); } catch(e) { /* already exists */ }
+
+// 색상 팔레트 마이그레이션 — 기존 카테고리 색상을 파스텔 팔레트로 업데이트
+const categoryColorMap = {
+  '식비': '#ff5252', '교통비': '#ff9f43', '쇼핑': '#ffda79',
+  '의료/건강': '#33d9b2', '엔터테인먼트': '#a29bfe', '통신비': '#34ace0',
+  '주거/관리비': '#81ecec', '기타지출': '#fd79a8',
+  '급여': '#33d9b2', '부업/프리랜서': '#74b9ff', '투자수익': '#ffda79', '기타수입': '#55efc4',
+};
+const assetCategoryColorMap = {
+  '금융자산': '#34ace0', '부동산': '#33d9b2', '투자자산': '#ffda79',
+  '기타자산': '#a29bfe', '노후/연금': '#ff9f43', '현금/입출금': '#55efc4',
+  '주식/ETF': '#ff9f43', '펀드': '#fd79a8', '채권': '#74b9ff', '보험': '#81ecec',
+};
+const updateCatColor = db.prepare('UPDATE categories SET color=? WHERE name=?');
+const updateAssetCatColor = db.prepare('UPDATE asset_categories SET color=? WHERE name=?');
+Object.entries(categoryColorMap).forEach(([name, color]) => updateCatColor.run(color, name));
+Object.entries(assetCategoryColorMap).forEach(([name, color]) => updateAssetCatColor.run(color, name));
 
 // 기본 카테고리 삽입 (없을 때만)
 const count = db.prepare('SELECT COUNT(*) as cnt FROM categories').get();
@@ -59,19 +78,19 @@ if (count.cnt === 0) {
   );
   const defaults = [
     // 지출
-    ['식비',           'expense', '#ef4444', '🍚'],
-    ['교통비',         'expense', '#f97316', '🚌'],
-    ['쇼핑',           'expense', '#eab308', '🛍️'],
-    ['의료/건강',      'expense', '#22c55e', '🏥'],
-    ['엔터테인먼트',   'expense', '#8b5cf6', '🎬'],
-    ['통신비',         'expense', '#06b6d4', '📱'],
-    ['주거/관리비',    'expense', '#64748b', '🏠'],
-    ['기타지출',       'expense', '#94a3b8', '💸'],
+    ['식비',           'expense', '#ff5252', '🍚'],
+    ['교통비',         'expense', '#ff9f43', '🚌'],
+    ['쇼핑',           'expense', '#ffda79', '🛍️'],
+    ['의료/건강',      'expense', '#33d9b2', '🏥'],
+    ['엔터테인먼트',   'expense', '#a29bfe', '🎬'],
+    ['통신비',         'expense', '#34ace0', '📱'],
+    ['주거/관리비',    'expense', '#81ecec', '🏠'],
+    ['기타지출',       'expense', '#fd79a8', '💸'],
     // 수입
-    ['급여',           'income',  '#10b981', '💼'],
-    ['부업/프리랜서',  'income',  '#3b82f6', '💻'],
-    ['투자수익',       'income',  '#f59e0b', '📈'],
-    ['기타수입',       'income',  '#a78bfa', '💰'],
+    ['급여',           'income',  '#33d9b2', '💼'],
+    ['부업/프리랜서',  'income',  '#74b9ff', '💻'],
+    ['투자수익',       'income',  '#ffda79', '📈'],
+    ['기타수입',       'income',  '#55efc4', '💰'],
   ];
   defaults.forEach(([name, type, color, icon]) =>
     insertCategory.run(name, type, color, icon)
@@ -83,10 +102,10 @@ const assetCatCount = db.prepare('SELECT COUNT(*) as cnt FROM asset_categories')
 if (assetCatCount.cnt === 0) {
   const insertAssetCat = db.prepare('INSERT INTO asset_categories (name, color) VALUES (?, ?)');
   [
-    ['금융자산', '#3b82f6'],
-    ['부동산',   '#10b981'],
-    ['투자자산', '#f59e0b'],
-    ['기타자산', '#8b5cf6'],
+    ['금융자산', '#34ace0'],
+    ['부동산',   '#33d9b2'],
+    ['투자자산', '#ffda79'],
+    ['기타자산', '#a29bfe'],
   ].forEach(([name, color]) => insertAssetCat.run(name, color));
 }
 

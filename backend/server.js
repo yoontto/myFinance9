@@ -18,6 +18,7 @@ app.use('/api/transactions',      require('./routes/transactions'));
 app.use('/api/asset-categories',  require('./routes/asset_categories'));
 app.use('/api/assets',            require('./routes/assets'));
 app.use('/api/stats',             require('./routes/stats'));
+app.use('/api/excel',             require('./routes/excel_upload'));
 
 // SPA fallback
 app.get('/{*splat}', (req, res) => {

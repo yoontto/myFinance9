@@ -11,7 +11,7 @@ router.post('/', (req, res) => {
   if (!name) return res.status(400).json({ error: '카테고리명이 필요합니다.' });
   const result = db.prepare(
     'INSERT INTO asset_categories (name, color) VALUES (?, ?)'
-  ).run(name.trim(), color || '#3b82f6');
+  ).run(name.trim(), color || '#34ace0');
   res.status(201).json(db.prepare('SELECT * FROM asset_categories WHERE id=?').get(result.lastInsertRowid));
 });
 
