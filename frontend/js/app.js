@@ -329,6 +329,7 @@ function renderAssets() {
           </div>
         </div>
       `;}).join('');
+      const isUnclassified = cat.id == null;
       return `
         <div class="asset-category-group">
           <div class="asset-category-header">
@@ -336,7 +337,10 @@ function renderAssets() {
               <span class="asset-cat-dot" style="background:${cat.color}"></span>
               <span class="asset-cat-name">${cat.name}</span>
             </div>
-            <span class="asset-cat-total">${fmt(groupTotal)}</span>
+            <div class="asset-cat-header-right">
+              ${isUnclassified ? `<button class="btn-delete-unclassified" title="미분류 전체 삭제">전체 삭제</button>` : ''}
+              <span class="asset-cat-total">${fmt(groupTotal)}</span>
+            </div>
           </div>
           <div class="asset-grid" data-cat-id="${cat.id ?? ''}">${cards}</div>
         </div>
@@ -353,6 +357,10 @@ function renderAssets() {
   container.querySelectorAll('.asset-delete').forEach(btn =>
     btn.addEventListener('click', () => deleteAsset(btn.dataset.id))
   );
+  const delUnclassBtn = container.querySelector('.btn-delete-unclassified');
+  if (delUnclassBtn) {
+    delUnclassBtn.addEventListener('click', () => deleteUnclassifiedAssets());
+  }
 
   const allGrids = [...container.querySelectorAll('.asset-grid')];
   allGrids.forEach(grid => {
@@ -397,6 +405,17 @@ async function deleteAsset(id) {
   try {
     await api.deleteAsset(id);
     toast('자산이 삭제되었습니다');
+    loadAssets();
+  } catch(e) { toast('삭제 실패', 'error'); }
+}
+
+async function deleteUnclassifiedAssets() {
+  const unclassified = state.assets.filter(a => a.category_id == null);
+  if (unclassified.length === 0) return;
+  if (!confirm(`미분류 자산 ${unclassified.length}건을 모두 삭제할까요?`)) return;
+  try {
+    const result = await api.deleteUnclassifiedAssets(state.assetYear, state.assetMonth);
+    toast(`미분류 자산 ${result.deleted}건이 삭제되었습니다`);
     loadAssets();
   } catch(e) { toast('삭제 실패', 'error'); }
 }

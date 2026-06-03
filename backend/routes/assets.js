@@ -86,6 +86,14 @@ router.post('/', (req, res) => {
   res.status(existing ? 200 : 201).json(row);
 });
 
+// 미분류 자산 일괄 삭제 (월별) — /:id 보다 먼저 등록해야 매칭됨
+router.delete('/unclassified', (req, res) => {
+  const { year, month } = req.query;
+  if (!year || !month) return res.status(400).json({ error: '년/월이 필요합니다.' });
+  const result = db.prepare('DELETE FROM assets WHERE category_id IS NULL AND year=? AND month=?').run(year, month);
+  res.json({ deleted: result.changes });
+});
+
 // 순서 일괄 저장
 router.patch('/reorder', (req, res) => {
   const { orders } = req.body; // [{id, sort_order}]

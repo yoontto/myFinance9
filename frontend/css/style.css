@@ -455,6 +455,26 @@ input, select, textarea { font-family: var(--font); }
   color: var(--asset-color);
   white-space: nowrap;
 }
+.asset-cat-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.btn-delete-unclassified {
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 6px;
+  border: 1px solid #ef4444;
+  background: transparent;
+  color: #ef4444;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+.btn-delete-unclassified:hover {
+  background: #ef4444;
+  color: #fff;
+}
 
 .asset-grid {
   display: flex;

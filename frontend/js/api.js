@@ -56,6 +56,7 @@ const api = {
   updateAsset: (id, data) => api.put(`/assets/${id}`, data),
   reorderAssets: (orders) => api.patch('/assets/reorder', { orders }),
   deleteAsset: (id) => api.delete(`/assets/${id}`),
+  deleteUnclassifiedAssets: (year, month) => api.delete(`/assets/unclassified?year=${year}&month=${month}`),
   getStats: (year, month) => api.get(`/stats/monthly?year=${year}&month=${month}`),
 
   async uploadExcel(file) {
